@@ -1,0 +1,707 @@
+---
+title: "Jumpscare_Analysis"
+author: "Lina Weingartner"
+date: "2023-12-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(tidyverse, conflicted, likert, MuMIn, pastecs, MASS)
+```
+
+```{r}
+#scouting for conflicts
+conflict_scout()
+conflict_prefer("filter", "dplyr")
+conflict_prefer("lag", "dplyr")
+conflict_prefer("recode", "likert")
+conflict_prefer("select", "dplyr")
+```
+```{r}
+setwd(".")
+```
+
+1. loading in and cleaning the data
+```{r}
+#reading in the data from soscisurvey using the script they provide (there were some issues with the encoding)
+survey_data_file = file.choose()
+survey_data_file = "survey_data.csv"
+
+options(encoding = "UTF-8")
+survey_data = read.delim(
+  file=survey_data_file, encoding="UTF-8", fileEncoding="UTF-8",
+  header = FALSE, sep = "\t", quote = "\"",
+  dec = ".", row.names = NULL,
+  col.names = c(
+    "CASE","SERIAL","REF","QUESTNNR","MODE","STARTED","AN01_01","AN01_02","AN01_03",
+    "DG01_01","DG02_01","DG03_01","EX04_01","EX04_02","EX05_01","EX06_01","FM01_01",
+    "FM01_02","PP01_01","PP01_02","PP01_03","PP01_04","PP01_05","WL01_01",
+    "FINISHED","Q_VIEWER","LASTPAGE","MAXPAGE","MISSING","MISSREL","TIME_RSI"
+  ),
+  as.is = TRUE,
+  colClasses = c(
+    CASE="numeric", SERIAL="character", REF="character", QUESTNNR="character",
+    MODE="factor", STARTED="POSIXct", AN01_01="numeric", AN01_02="numeric",
+    AN01_03="numeric", DG01_01="character", DG02_01="character",
+    DG03_01="character", EX04_01="numeric", EX04_02="numeric",
+    EX05_01="numeric", EX06_01="numeric", FM01_01="numeric", FM01_02="numeric",
+    PP01_01="numeric", PP01_02="numeric", PP01_03="numeric", PP01_04="numeric",
+    PP01_05="numeric", WL01_01="numeric", FINISHED="logical",
+    Q_VIEWER="logical", LASTPAGE="numeric", MAXPAGE="numeric",
+    MISSING="numeric", MISSREL="numeric", TIME_RSI="numeric"
+  ),
+  skip = 1,
+  check.names = TRUE, fill = TRUE,
+  strip.white = FALSE, blank.lines.skip = TRUE,
+  comment.char = "",
+  na.strings = ""
+)
+
+row.names(survey_data) = survey_data$CASE
+
+rm(survey_data_file)
+
+attr(survey_data, "project") = "Jumpscare"
+attr(survey_data, "description") = "Jumpscare"
+attr(survey_data, "date") = "2023-12-25 16:16:25"
+attr(survey_data, "server") = "https://www.soscisurvey.de"
+
+# Variable und Value Labels
+attr(survey_data$AN01_01,"1") = "strongly disagree"
+attr(survey_data$AN01_01,"2") = "disagree"
+attr(survey_data$AN01_01,"3") = "neither agree nor disagree"
+attr(survey_data$AN01_01,"4") = "agree"
+attr(survey_data$AN01_01,"5") = "strongly agree"
+attr(survey_data$AN01_01,"-1") = "don\'t<br>know"
+attr(survey_data$AN01_02,"1") = "strongly disagree"
+attr(survey_data$AN01_02,"2") = "disagree"
+attr(survey_data$AN01_02,"3") = "neither agree nor disagree"
+attr(survey_data$AN01_02,"4") = "agree"
+attr(survey_data$AN01_02,"5") = "strongly agree"
+attr(survey_data$AN01_02,"-1") = "don\'t<br>know"
+attr(survey_data$AN01_03,"1") = "strongly disagree"
+attr(survey_data$AN01_03,"2") = "disagree"
+attr(survey_data$AN01_03,"3") = "neither agree nor disagree"
+attr(survey_data$AN01_03,"4") = "agree"
+attr(survey_data$AN01_03,"5") = "strongly agree"
+attr(survey_data$AN01_03,"-1") = "don\'t<br>know"
+attr(survey_data$EX04_01,"1") = "not at all"
+attr(survey_data$EX04_01,"2") = "not really"
+attr(survey_data$EX04_01,"3") = "neutral"
+attr(survey_data$EX04_01,"4") = "a bit"
+attr(survey_data$EX04_01,"5") = "very much"
+attr(survey_data$EX04_01,"-1") = "don\'t<br>know"
+attr(survey_data$EX04_02,"1") = "not at all"
+attr(survey_data$EX04_02,"2") = "not really"
+attr(survey_data$EX04_02,"3") = "neutral"
+attr(survey_data$EX04_02,"4") = "a bit"
+attr(survey_data$EX04_02,"5") = "very much"
+attr(survey_data$EX04_02,"-1") = "don\'t<br>know"
+attr(survey_data$EX05_01,"1") = "very low"
+attr(survey_data$EX05_01,"2") = "low"
+attr(survey_data$EX05_01,"3") = "neutral"
+attr(survey_data$EX05_01,"4") = "high"
+attr(survey_data$EX05_01,"5") = "very high"
+attr(survey_data$EX06_01,"1") = "very negative"
+attr(survey_data$EX06_01,"2") = "negative"
+attr(survey_data$EX06_01,"3") = "neutral"
+attr(survey_data$EX06_01,"4") = "positive"
+attr(survey_data$EX06_01,"5") = "very positive"
+attr(survey_data$FM01_01,"1") = "very rarely"
+attr(survey_data$FM01_01,"2") = "rarely"
+attr(survey_data$FM01_01,"3") = "sometimes"
+attr(survey_data$FM01_01,"4") = "often"
+attr(survey_data$FM01_01,"5") = "very often"
+attr(survey_data$FM01_02,"1") = "very rarely"
+attr(survey_data$FM01_02,"2") = "rarely"
+attr(survey_data$FM01_02,"3") = "sometimes"
+attr(survey_data$FM01_02,"4") = "often"
+attr(survey_data$FM01_02,"5") = "very often"
+attr(survey_data$PP01_01,"1") = "strongly disagree"
+attr(survey_data$PP01_01,"2") = "disagree"
+attr(survey_data$PP01_01,"3") = "neither agree nor disagree"
+attr(survey_data$PP01_01,"4") = "agree"
+attr(survey_data$PP01_01,"5") = "strongly agree"
+attr(survey_data$PP01_01,"-1") = "don\'t<br>know"
+attr(survey_data$PP01_02,"1") = "strongly disagree"
+attr(survey_data$PP01_02,"2") = "disagree"
+attr(survey_data$PP01_02,"3") = "neither agree nor disagree"
+attr(survey_data$PP01_02,"4") = "agree"
+attr(survey_data$PP01_02,"5") = "strongly agree"
+attr(survey_data$PP01_02,"-1") = "don\'t<br>know"
+attr(survey_data$PP01_03,"1") = "strongly disagree"
+attr(survey_data$PP01_03,"2") = "disagree"
+attr(survey_data$PP01_03,"3") = "neither agree nor disagree"
+attr(survey_data$PP01_03,"4") = "agree"
+attr(survey_data$PP01_03,"5") = "strongly agree"
+attr(survey_data$PP01_03,"-1") = "don\'t<br>know"
+attr(survey_data$PP01_04,"1") = "strongly disagree"
+attr(survey_data$PP01_04,"2") = "disagree"
+attr(survey_data$PP01_04,"3") = "neither agree nor disagree"
+attr(survey_data$PP01_04,"4") = "agree"
+attr(survey_data$PP01_04,"5") = "strongly agree"
+attr(survey_data$PP01_04,"-1") = "don\'t<br>know"
+attr(survey_data$PP01_05,"1") = "strongly disagree"
+attr(survey_data$PP01_05,"2") = "disagree"
+attr(survey_data$PP01_05,"3") = "neither agree nor disagree"
+attr(survey_data$PP01_05,"4") = "agree"
+attr(survey_data$PP01_05,"5") = "strongly agree"
+attr(survey_data$PP01_05,"-1") = "don\'t<br>know"
+attr(survey_data$WL01_01,"1") = "Strongly disagree"
+attr(survey_data$WL01_01,"2") = "Disagree"
+attr(survey_data$WL01_01,"3") = "Neither agree nor disagree"
+attr(survey_data$WL01_01,"4") = "Agree"
+attr(survey_data$WL01_01,"5") = "Strongly agree"
+attr(survey_data$FINISHED,"F") = "Canceled"
+attr(survey_data$FINISHED,"T") = "Finished"
+attr(survey_data$Q_VIEWER,"F") = "Respondent"
+attr(survey_data$Q_VIEWER,"T") = "Spectator"
+comment(survey_data$SERIAL) = "Serial number (if provided)"
+comment(survey_data$REF) = "Reference (if provided in link)"
+comment(survey_data$QUESTNNR) = "Questionnaire that has been used in the interview"
+comment(survey_data$MODE) = "Interview mode"
+comment(survey_data$STARTED) = "Time the interview has started (Europe/Berlin)"
+comment(survey_data$AN01_01) = "Anticipation: During the workload task, I thought about the jumpscare less than before"
+comment(survey_data$AN01_02) = "Anticipation: When the workload task started, I anticipated that the jumpscare would occur during the task"
+comment(survey_data$AN01_03) = "Anticipation: During the workload task I was too occupied to think about the jumpscare much"
+comment(survey_data$DG01_01) = "ID: [01]"
+comment(survey_data$DG02_01) = "Age: [01]"
+comment(survey_data$DG03_01) = "Gender: [01]"
+comment(survey_data$EX04_01) = "Enjoyment: How much did you enjoy the video game?"
+comment(survey_data$EX04_02) = "Enjoyment: How much did you enjoy the jumpscare moment specifically?"
+comment(survey_data$EX05_01) = "Emotional Experience Arousal: How high was the arousal -in an emotional, not sexual sense- you felt? High Arousal e.g.: Anger, Excitement, low arousal e.g. Tiredness, Boredom"
+comment(survey_data$EX06_01) = "Emotional Experience Valence: How was your experience valenced? negative valence = e.g. sadness, frustration, positive valence = e.g. happiness, contentment"
+comment(survey_data$FM01_01) = "Familiarity: How often do you play video games?"
+comment(survey_data$FM01_02) = "Familiarity: How often do you consume horror entertainment (e.g. horror movies/games/books or going to haunted houses)?"
+comment(survey_data$PP01_01) = "Physical Perception: I felt that my heart was beating faser"
+comment(survey_data$PP01_02) = "Physical Perception: I felt that I began to sweat"
+comment(survey_data$PP01_03) = "Physical Perception: I felt my facial muscles react"
+comment(survey_data$PP01_04) = "Physical Perception: I felt my shoulders raise"
+comment(survey_data$PP01_05) = "Physical Perception: I felt my blinking rate accelerate"
+comment(survey_data$WL01_01) = "Clarity of Instruction: I understood the instructions for the memory task well and it was clear to me what I was expected to do"
+comment(survey_data$FINISHED) = "Has the interview been finished (reached last page)?"
+comment(survey_data$Q_VIEWER) = "Did the respondent only view the questionnaire, omitting mandatory questions?"
+comment(survey_data$LASTPAGE) = "Last page that the participant has handled in the questionnaire"
+comment(survey_data$MAXPAGE) = "Hindmost page handled by the participant"
+comment(survey_data$MISSING) = "Missing answers in percent"
+comment(survey_data$MISSREL) = "Missing answers (weighted by relevance)"
+comment(survey_data$TIME_RSI) = "Completion Speed (relative)"
+```
+
+
+```{r}
+#load in the remaining data
+survey_df <- as.tibble(survey_data)
+GSR_df <- read_csv("GSR_data.csv")
+base_HR_df <- read_csv("heartrate_baseline.csv")
+task_HR_df <- read_csv("heartrate_task_test.csv")
+self_report_df <- read_csv("self_report_data.csv")
+HR_peak_data <- read_csv("cardiac_peaks_data.csv")
+HR_before <- read_csv("heartrate_bf.csv")
+HR_after <- read_csv("heartrate_af.csv")
+```
+```{r}
+spec(GSR_df)
+```
+```{r}
+task_HR_df <- task_HR_df %>% mutate(ParticipantID = as.character(ParticipantID))
+```
+
+```{r}
+#improve labels on the questionnaire
+survey_df <- survey_df %>% 
+  select(7:24) %>%
+rename(ParticipantID=DG01_01, Age = DG02_01, Gender = DG03_01, enjoyment_game = EX04_01, enjoyment_jumpscare = EX04_02, arousal = EX05_01, valence = EX06_01, videogame_familiarity = FM01_01,horror_familiarity = FM01_02, felt_heartbeat_quicken = PP01_01, felt_sweat = PP01_02, felt_facial_muscles = PP01_03, felt_shoulders_raise = PP01_04, felt_blink_accelerate = PP01_05, understood_instructions = WL01_01)
+```
+
+```{r}
+#one df to rule them all
+dflist = list(survey_df, GSR_df, base_HR_df, task_HR_df, self_report_df, HR_peak_data, HR_before, HR_after)
+ultimate_df <- dflist %>% reduce(full_join, by = "ParticipantID")
+```
+
+```{r}
+#create columns for condition and difference in heart rate and clean up gender and age column
+ultimate_df <- ultimate_df %>% 
+  mutate(condition = as.factor(ifelse(substr(ParticipantID, 1, 1) == 3, "high workload", "no workload")), BPM_diff = as.numeric(MeanBPM_task_test - MeanBPM_resting), 
+         Gender = as.factor(case_when(Gender == "femal" ~ "female",
+                            Gender == "Male" ~ "male",
+                            .default = Gender)),
+         Age = as.numeric(case_when(Age=="337" ~ "21",
+                         Age=="2002" ~ "21",
+                         .default = Age)), SAM_Arousal = as.factor(SAM_Arousal),
+         BPM_ratio = (BPM_diff/MeanBPM_resting)*100,...1.x = NULL, ...1.y=NULL,...1=NULL, `Unnamed: 0`=NULL)
+  
+```
+
+```{r}
+#delete HRV columns that will not be used
+ultimate_df <- ultimate_df[, -29:-54]
+ultimate_df <- ultimate_df[, -37:-62]
+ultimate_df <- ultimate_df[, -56:-60]
+ultimate_df <- ultimate_df[, -64:-68]
+```
+
+```{r}
+ultimate_df <- ultimate_df %>% 
+  mutate(Jumpscare_HR_diff = MeanBPM_after_jump-MeanBPM_before_jump)
+```
+
+```{r}
+#participant 024 has to be excluded
+df_filt <- ultimate_df %>% subset(ParticipantID!="024") %>% na.omit()
+```
+
+```{r}
+df_filt <- df_filt %>% mutate(across(1:4, ~as.factor(.x)), across(7:18, ~as.factor(.x)))
+```
+
+```{r}
+mean(df_filt$Age)
+sd(df_filt$Age)
+df_filt%>% group_by(Gender) %>% summarise(mean = mean(GSR_Amplitude), sd = sd(GSR_Amplitude))
+df_filt %>% group_by(condition) %>% summarise(mean = mean(GSR_Amplitude), sd = sd(GSR_Amplitude))
+df_filt %>% group_by(condition) %>% summarise(mean=mean(BPM_diff), sd = sd(BPM_diff))
+df_filt %>% group_by(videogame_familiarity) %>% summarise(mean = mean(BPM_ratio))
+```
+
+```{r}
+df_filt %>% group_by(condition) %>% summarise(across(c(GSR_Amplitude, Jumpscare_HR_diff, BPM_ratio, GSR_Onset, Cardiac_Amp_1, Cardiac_Amp_2, Cardiac_Lat_1, Cardiac_Lat_2), ~mean(.x, na.rm = T)))
+```
+
+
+2. plotting the self report data
+```{r}
+#plot likert data
+df_likert <- df_filt %>% 
+  mutate(across(1:3, ~case_when(.x == -1 ~ "no answer",
+                               .x ==1 ~ "strongly disagree", 
+                               .x == 2 ~ "disagree",
+                               .x == 3 ~ "neither agree nor disagree",
+                               .x == 4 ~ "agree",
+                               .x == 5 ~ "strongly agree"))) %>% 
+    mutate(across(13:18, ~case_when(.x == -1 ~ "no answer",
+                               .x ==1 ~ "strongly disagree", 
+                               .x == 2 ~ "disagree",
+                               .x == 3 ~ "neither agree nor disagree",
+                               .x == 4 ~ "agree",
+                               .x == 5 ~ "strongly agree"))) %>% 
+  mutate(across(7:8, ~case_when(.x == -1 ~"no answer",
+                                 .x == 1 ~ "not at all",
+                                 .x == 2 ~ "not really",
+                                 .x == 3 ~ "neutral",
+                                 .x == 4 ~ "moderately",
+                                 .x == 5 ~ "very much"))) %>% 
+  mutate(arousal = case_when(arousal == -1 ~ "no answer",
+                             arousal == 1 ~ "very low",
+                             arousal == 2 ~ "low",
+                             arousal == 3 ~ "neutral",
+                             arousal == 4 ~ "high",
+                             arousal == 5 ~ "very high")) %>% 
+  mutate(valence = case_when(valence == -1 ~ "no answer",
+                             valence == 1 ~ "very negative",
+                             valence == 2 ~ "negative",
+                             valence == 3 ~ "neutral",
+                             valence == 4 ~ "positive",
+                             valence == 5 ~ "very positive")) %>% 
+  mutate(across(11:12, ~case_when(.x == -1 ~ "no answer",
+                                  .x == 1 ~ "never",
+                                  .x == 2 ~ "rarely",
+                                  .x == 3 ~ "sometimes",
+                                  .x == 4 ~ "often",
+                                  .x == 5 ~ "very often"))) %>% 
+  mutate(across(1:3, ~as.factor(.x))) %>% 
+  mutate(across(7:18, ~as.factor(.x))) %>% 
+  rename("During the workload task, I thought about the jumpscare less than before" = AN01_01, "At the time of the jumpscare, I was expecting that the scare would come any moment now" = AN01_02, "During the workload task I was too occupied to think about the jumpscare much" = AN01_03, "How much did you enjoy the video game?" = enjoyment_game, "How much did you enjoy the jumpscare moment specifically?" = enjoyment_jumpscare, "How high was the emotional arousal you felt?" = arousal, "How was your experience valenced?" = valence, "How often do you play video games?" = videogame_familiarity, "How often do you consume horror entertainment (e.g. horror movies/games/books or going to haunted houses)?" = horror_familiarity, "I felt that my heart was beating faster" = felt_heartbeat_quicken, "I felt that I began to sweat" = felt_sweat, "I felt my facial muscles react" = felt_facial_muscles, "I felt my shoulders raise" = felt_shoulders_raise, "I felt my blinking rate accelerate" = felt_blink_accelerate, "I understood the instructions for the memory task well and it was clear to me what I was expected to do" = understood_instructions)
+```
+
+```{r}
+df_likert <- as.data.frame(df_likert)
+```
+
+```{r}
+df_likert[1:3] <- lapply(df_likert[1:3], factor, levels=c("strongly disagree", "disagree", "neither agree nor disagree", "agree", "strongly agree"))
+df_likert[13:17] <- lapply(df_likert[13:17], factor, levels=c("strongly disagree", "disagree", "neither agree nor disagree", "agree", "strongly agree"))
+df_likert[7:8] <- lapply(df_likert[7:8], factor, levels = c("not at all", "not really", "neutral", "moderately", "very much"))
+df_likert[11:12] <- lapply(df_likert[11:12], factor, levels = c("never", "rarely", "sometimes", "often", "very often"))
+df_likert$"How high was the emotional arousal you felt?" <- lapply(df_likert$"How high was the emotional arousal you felt?", factor, levels = c("very low", "low", "neutral", "high", "very high"))
+df_likert$"How was your experience valenced?" <- lapply(df_likert$"How was your experience valenced?", factor, levels = c("very negative", "negative", "neutral", "positive", "very positive"))
+```
+
+```{r}
+plot(likert(df_likert[,c(1:3), drop=FALSE], grouping = df_likert[,46]),
+legend.position="right")
+plot(likert(df_likert[,c(13:17), drop=FALSE], grouping = df_likert[,46]),
+legend.position="right")
+plot(likert(df_likert[,c(7:8), drop=FALSE], grouping = df_likert[,46]),
+legend.position="right")
+plot(likert(df_likert[,c(11:12), drop=FALSE], grouping = df_likert[,46]),
+legend.position="right")
+plot(likert(df_likert[,9, drop = F], grouping = df_likert[,46]),
+legend.position="right")
+plot(likert(df_likert$`How was your experience valenced?`, grouping = df_likert[,46]),
+legend.position="right")
+```
+
+3. examine whether the outcome variables meet modelling assumptions
+```{r}
+#GSR_Amplitude
+round(pastecs::stat.desc(cbind(df_filt$GSR_Amplitude), basic =
+    FALSE, norm = TRUE), digits = 3)
+df_filt$GSR_Amplitude %>% qqnorm (pch = 16, frame = FALSE)
+df_filt$GSR_Amplitude %>% qqline (col = "firebrick", lwd = 3)
+```
+
+# ```{r}
+# #log-transform SCR and make dummy variables for gender and condition
+# df_filt <- df_filt %>% 
+#   mutate(SCR_Amp_sqrt = sqrt(GSR_Amplitude), Gender_dummy = ifelse(Gender=="female", 0, 1))
+# df_filt$SCR_Amp_log %>% qqnorm (pch = 16, frame = FALSE)
+# df_filt$SCR_Amp_log %>% qqline (col = "firebrick", lwd = 3)
+# round(pastecs::stat.desc(cbind(df_filt$SCR_Amp_log), basic =
+#     FALSE, norm = TRUE), digits = 3)
+# ```
+
+```{r}
+df_filt$condition <- relevel(df_filt$condition, ref = "no workload")
+```
+
+modelling the relationship between condition and SCR_Amplitude
+```{r}
+#assumption of normality was violated (right skew), so using a gamma distribution
+m1.0 <- df_filt %>% glm(formula = GSR_Amplitude~condition, family = Gamma(link = "log"))
+m1.1 <- df_filt %>% glm(formula = GSR_Amplitude~condition + horror_familiarity, family = Gamma(link="log"))
+m1.2 <- df_filt %>% glm(formula = GSR_Amplitude~condition + videogame_familiarity, family = Gamma(link = "log"))
+m1.3 <- df_filt %>% glm(formula = GSR_Amplitude~condition + Age, family = Gamma(link = "log"))
+m1.4 <- df_filt %>% glm(formula = GSR_Amplitude~condition + Gender, family = Gamma(link = "log"))
+m1.5 <- df_filt %>% glm(formula = GSR_Amplitude~condition + videogame_familiarity + Gender, family = Gamma(link="log"))
+m1.6 <- df_filt %>% glm(formula = GSR_Amplitude~condition + videogame_familiarity + horror_familiarity, family = Gamma(link = "log"))
+m1.7 <- df_filt %>% glm(formula=GSR_Amplitude~condition + videogame_familiarity + Gender, family = Gamma(link = "log"))
+m1.8 <- df_filt %>% glm(formula=GSR_Amplitude~condition + Age + videogame_familiarity, family = Gamma(link = "log"))
+m1.9 <- df_filt %>% glm(formula=GSR_Amplitude~condition + horror_familiarity + Gender, family = Gamma(link = "log"))
+m1.10 <- df_filt %>% glm(formula=GSR_Amplitude~condition + horror_familiarity + Age, family = Gamma(link = "log"))
+m1.11 <- df_filt %>% glm(formula=GSR_Amplitude~condition + Gender + Age, family = Gamma(link = "log"))
+#model comparison with AIC
+AICc(m1.0, m1.1, m1.2, m1.3, m1.4, m1.5, m1.6, m1.7, m1.8, m1.9, m1.10, m1.11)
+```
+```{r}
+#pit m1.4 against version with interaction term
+m1.4i <- df_filt %>% glm(formula = GSR_Amplitude~condition * Gender, family = Gamma(link = "log"))
+AICc(m1.4, m1.4i)
+```
+```{r}
+summary(m1.4)
+```
+
+
+modelling the relationship between mental workload and anticipatory deceleration
+```{r}
+#looks okay normal
+round(pastecs::stat.desc(cbind(df_filt$BPM_ratio), basic =
+    FALSE, norm = TRUE), digits = 3)
+df_filt$BPM_ratio %>% qqnorm (pch = 16, frame = FALSE)
+df_filt$BPM_ratio %>% qqline (col = "firebrick", lwd = 3)
+```
+
+```{r}
+m2.0 <- df_filt %>% glm(formula = BPM_diff~condition, family = gaussian)
+m2.1 <- df_filt %>% glm(formula = BPM_ratio~condition + horror_familiarity, family = gaussian)
+m2.2 <- df_filt %>% glm(formula = BPM_ratio~condition + videogame_familiarity, family = gaussian)
+m2.3 <- df_filt %>% glm(formula = BPM_ratio~condition + Age, family = gaussian)
+m2.4 <- df_filt %>% glm(formula = BPM_ratio~condition + Gender, family = gaussian)
+m2.5 <- df_filt %>% glm(formula = BPM_ratio~condition + videogame_familiarity + Gender, family = gaussian)
+m2.6 <- df_filt %>% glm(formula = BPM_ratio~condition + videogame_familiarity + horror_familiarity, family = gaussian)
+m2.7 <- df_filt %>% glm(formula = BPM_ratio~condition + videogame_familiarity + Gender, family = gaussian)
+m2.8 <- df_filt %>% glm(formula = BPM_ratio~condition + Age + videogame_familiarity, family = gaussian)
+m2.9 <- df_filt %>% glm(formula = BPM_ratio~condition + horror_familiarity + Gender, family = gaussian)
+m2.10 <- df_filt %>% glm(formula = BPM_ratio~condition + horror_familiarity + Age, family = gaussian)
+m2.11 <- df_filt %>% glm(formula = BPM_ratio~condition + Gender + Age, family = gaussian)
+#model comparison with AIC
+AICc(m2.0, m2.1, m2.2, m2.3, m2.4, m2.5, m2.6, m2.7, m2.8, m2.9, m2.10, m2.11)
+```
+```{r}
+summary(m2.0)
+```
+
+modelling the relationship between workload and accuracy
+```{r}
+round(pastecs::stat.desc(cbind(df_filt$Accuracy), basic =
+    FALSE, norm = TRUE), digits = 3)
+df_filt$Accuracy %>% qqnorm (pch = 16, frame = FALSE)
+df_filt$Accuracy %>% qqline (col = "firebrick", lwd = 3)
+#looks quite bad, but unsurprising bc of ceiling on 
+```
+```{r}
+#using welch's test
+#alternative could maybe be gamma regression on -1
+t.test(df_filt$Accuracy~df_filt$condition, var.equal = FALSE)
+```
+n-back and reaction time
+```{r}
+round(pastecs::stat.desc(cbind(df_filt$`Reaction Time`), basic =
+    FALSE, norm = TRUE), digits = 3)
+df_filt$`Reaction Time` %>% qqnorm (pch = 16, frame = FALSE)
+df_filt$`Reaction Time` %>% qqline (col = "firebrick", lwd = 3)
+plot(lm(`Reaction Time`~condition,data = df_filt))
+```
+```{r}
+t.test(df_filt$`Reaction Time`~df_filt$condition, var.equal = F)
+```
+
+and n-back to perceived workload
+```{r}
+round(pastecs::stat.desc(cbind(df_filt$RawTLX_NoPhys), basic =
+    FALSE, norm = TRUE), digits = 3)
+df_filt$RawTLX_NoPhys %>% qqnorm (pch = 16, frame = FALSE)
+df_filt$RawTLX_NoPhys %>% qqline (col = "firebrick", lwd = 3)
+plot(lm(RawTLX_NoPhys~condition,data = df_filt))
+```
+```{r}
+t.test(df_filt$RawTLX_NoPhys~df_filt$condition)
+```
+Modelling cardiac acceleration to jumpscare
+```{r}
+round(pastecs::stat.desc(cbind(df_filt$Cardiac_Amp_1), basic =
+    FALSE, norm = TRUE), digits = 3)
+df_filt$Cardiac_Amp_1 %>% qqnorm (pch = 16, frame = FALSE)
+df_filt$Cardiac_Amp_1 %>% qqline (col = "firebrick", lwd = 3)
+plot(lm(Cardiac_Amp_1~condition,data = df_filt))
+#looks like another case for gamma
+```
+
+
+```{r}
+m3.0 <- df_filt %>% glm(formula = Cardiac_Amp_1~condition, family = Gamma(link = "log"))
+m3.1 <- df_filt %>% glm(formula = Cardiac_Amp_1~condition + horror_familiarity, family = Gamma(link="log"))
+m3.2 <- df_filt %>% glm(formula = Cardiac_Amp_1~condition + videogame_familiarity, family = Gamma(link = "log"))
+m3.3 <- df_filt %>% glm(formula = Cardiac_Amp_1~condition + Age, family = Gamma(link = "log"))
+m3.4 <- df_filt %>% glm(formula = Cardiac_Amp_1~condition + Gender, family = Gamma(link = "log"))
+m3.5 <- df_filt %>% glm(formula = Cardiac_Amp_1~condition + videogame_familiarity + Gender, family = Gamma(link="log"))
+m3.6 <- df_filt %>% glm(formula = Cardiac_Amp_1~condition + videogame_familiarity + horror_familiarity, family = Gamma(link = "log"))
+m3.7 <- df_filt %>% glm(formula=Cardiac_Amp_1~condition + videogame_familiarity + Gender, family = Gamma(link = "log"))
+m3.8 <- df_filt %>% glm(formula=Cardiac_Amp_1~condition + Age + videogame_familiarity, family = Gamma(link = "log"))
+m3.9 <- df_filt %>% glm(formula=Cardiac_Amp_1~condition + horror_familiarity + Gender, family = Gamma(link = "log"))
+m3.10 <- df_filt %>% glm(formula=Cardiac_Amp_1~condition + horror_familiarity + Age, family = Gamma(link = "log"))
+m3.11 <- df_filt %>% glm(formula=Cardiac_Amp_1~condition + Gender + Age, family = Gamma(link = "log"))
+#model comparison with AIC
+AICc(m3.0, m3.1, m3.2, m3.3, m3.4, m3.5, m3.6, m3.7, m3.8, m3.9, m3.10, m3.11)
+```
+
+```{r}
+summary(m3.4)
+```
+```{r}
+round(pastecs::stat.desc(cbind(df_filt$Cardiac_Amp_2), basic =
+    FALSE, norm = TRUE), digits = 3)
+df_filt$Cardiac_Amp_2 %>% qqnorm (pch = 16, frame = FALSE)
+df_filt$Cardiac_Amp_2 %>% qqline (col = "firebrick", lwd = 3)
+plot(lm(Cardiac_Amp_2~condition,data = df_filt))
+```
+
+
+```{r}
+m4.0 <- df_filt %>% glm(formula = Cardiac_Amp_1~condition, family = gaussian)
+m4.1 <- df_filt %>% glm(formula = Cardiac_Amp_1~condition + horror_familiarity, family = gaussian)
+m4.2 <- df_filt %>% glm(formula = Cardiac_Amp_1~condition + videogame_familiarity, family = gaussian)
+m4.3 <- df_filt %>% glm(formula = Cardiac_Amp_1~condition + Age, family = gaussian)
+m4.4 <- df_filt %>% glm(formula = Cardiac_Amp_1~condition + Gender, family = gaussian)
+m4.5 <- df_filt %>% glm(formula = Cardiac_Amp_1~condition + videogame_familiarity + Gender, family = gaussian)
+m4.6 <- df_filt %>% glm(formula = Cardiac_Amp_1~condition + videogame_familiarity + horror_familiarity, family = gaussian)
+m4.7 <- df_filt %>% glm(formula=Cardiac_Amp_1~condition + videogame_familiarity + Gender, family = gaussian)
+m4.8 <- df_filt %>% glm(formula=Cardiac_Amp_1~condition + Age + videogame_familiarity, family = gaussian)
+m4.9 <- df_filt %>% glm(formula=Cardiac_Amp_1~condition + horror_familiarity + Gender, family = gaussian)
+m4.10 <- df_filt %>% glm(formula=Cardiac_Amp_1~condition + horror_familiarity + Age, family = gaussian)
+m4.11 <- df_filt %>% glm(formula=Cardiac_Amp_1~condition + Gender + Age, family = gaussian)
+#model comparison with AIC
+AICc(m4.0, m4.1, m4.2, m4.3, m4.4, m4.5, m4.6, m4.7, m4.8, m4.9, m4.10, m4.11)
+```
+```{r}
+m4.3i <- df_filt %>% glm(formula = Cardiac_Amp_1~condition * Age, family = gaussian)
+AICc(m4.3i, m4.3, m4.0)
+```
+
+```{r}
+summary(m4.3)
+```
+
+paired t-test to see if jumpscare changed heart rate
+```{r}
+t.test(df_filt$MeanBPM_before_jump, df_filt$MeanBPM_after_jump, paired = T)
+```
+
+
+Modelling cardiac acceleration to jumpscare over 20s
+
+```{r}
+round(pastecs::stat.desc(cbind(df_filt$Jumpscare_HR_diff), basic =
+    FALSE, norm = TRUE), digits = 3)
+df_filt$Jumpscare_HR_diff %>% qqnorm (pch = 16, frame = FALSE)
+df_filt$Jumpscare_HR_diff %>% qqline (col = "firebrick", lwd = 3)
+plot(lm(Jumpscare_HR_diff~condition,data = df_filt))
+#distribution slightly heavy tailed, but should be okay
+
+```
+```{r}
+m5.0 <- df_filt %>% glm(formula = Jumpscare_HR_diff~condition, family = gaussian)
+m5.1 <- df_filt %>% glm(formula = Jumpscare_HR_diff~condition + horror_familiarity, family = gaussian)
+m5.2 <- df_filt %>% glm(formula = Jumpscare_HR_diff~condition + videogame_familiarity, family = gaussian)
+m5.3 <- df_filt %>% glm(formula = Jumpscare_HR_diff~condition + Age, family = gaussian)
+m5.4 <- df_filt %>% glm(formula = Jumpscare_HR_diff~condition + Gender, family = gaussian)
+m5.5 <- df_filt %>% glm(formula = Jumpscare_HR_diff~condition + videogame_familiarity + Gender, family = gaussian)
+m5.6 <- df_filt %>% glm(formula = Jumpscare_HR_diff~condition + videogame_familiarity + horror_familiarity, family = gaussian)
+m5.7 <- df_filt %>% glm(formula = Jumpscare_HR_diff~condition + videogame_familiarity + Gender, family = gaussian)
+m5.8 <- df_filt %>% glm(formula = Jumpscare_HR_diff~condition + Age + videogame_familiarity, family = gaussian)
+m5.9 <- df_filt %>% glm(formula = Jumpscare_HR_diff~condition + horror_familiarity + Gender, family = gaussian)
+m5.10 <- df_filt %>% glm(formula = Jumpscare_HR_diff~condition + horror_familiarity + Age, family = gaussian)
+m5.11 <- df_filt %>% glm(formula = Jumpscare_HR_diff~condition + Gender + Age, family = gaussian)
+AICc(m5.0, m5.1, m5.2, m5.3, m5.4, m5.5, m5.6, m5.7, m5.8, m5.9, m5.10, m5.11)
+```
+```{r}
+m5.4i <- df_filt %>% glm(formula = Jumpscare_HR_diff~condition*Gender, family = gaussian)
+AICc(m5.0, m5.4, m5.4i)
+```
+```{r}
+summary(m5.0)
+summary(m5.4)
+```
+SAM and likert scales with ordinal logistic regression
+```{r}
+m6.0 <- df_filt %>% polr(formula = SAM_Arousal~condition, Hess = T)
+m6.1 <- df_filt %>% polr(formula = SAM_Arousal~condition + horror_familiarity, Hess = T)
+m6.2 <- df_filt %>% polr(formula = SAM_Arousal~condition + videogame_familiarity, Hess = T)
+m6.3 <- df_filt %>% polr(formula = SAM_Arousal~condition + Age, Hess = T)
+m6.4 <- df_filt %>% polr(formula = SAM_Arousal~condition + Gender, Hess = T)
+m6.5 <- df_filt %>% polr(formula = SAM_Arousal~condition + videogame_familiarity + Gender, Hess = T)
+m6.6 <- df_filt %>% polr(formula = SAM_Arousal~condition + videogame_familiarity + horror_familiarity, Hess = T)
+m6.7 <- df_filt %>% polr(formula = SAM_Arousal~condition + videogame_familiarity + Gender, Hess = T)
+m6.8 <- df_filt %>% polr(formula = SAM_Arousal~condition + Age + videogame_familiarity, Hess = T)
+m6.9 <- df_filt %>% polr(formula = SAM_Arousal~condition + horror_familiarity + Gender, Hess = T)
+m6.10 <- df_filt %>% polr(formula = SAM_Arousal~condition + horror_familiarity + Age, Hess = T)
+m6.11 <- df_filt %>% polr(formula = SAM_Arousal~condition + Gender + Age, Hess = T)
+AICc(m6.0, m6.1, m6.2, m6.3, m6.4, m6.5, m6.6, m6.7, m6.8, m6.9, m6.10, m6.11)
+```
+```{r}
+summary(m6.0)
+summary(m6.4)
+```
+```{r}
+summary_table <- coef(summary(m6.4))
+pval <- pnorm(abs(summary_table[, "t value"]),lower.tail = FALSE)* 2
+summary_table <- cbind(summary_table, "p value" = round(pval,3))
+summary_table
+```
+```{r}
+m7.0 <- df_filt %>% polr(formula = AN01_03~condition, Hess = T)
+m7.1 <- df_filt %>% polr(formula = AN01_03~condition + horror_familiarity, Hess = T)
+m7.2 <- df_filt %>% polr(formula = AN01_03~condition + videogame_familiarity, Hess = T)
+m7.3 <- df_filt %>% polr(formula = AN01_03~condition + Age, Hess = T)
+m7.4 <- df_filt %>% polr(formula = AN01_03~condition + Gender, Hess = T)
+AICc(m7.0, m7.1, m7.2, m7.3, m7.4)
+```
+```{r}
+summary_table <- coef(summary(m7.0))
+pval <- pnorm(abs(summary_table[, "t value"]),lower.tail = FALSE)* 2
+summary_table <- cbind(summary_table, "p value" = round(pval,3))
+summary_table
+```
+```{r}
+m8.0 <- df_filt %>% polr(formula = AN01_02~condition, Hess = T)
+m8.1 <- df_filt %>% polr(formula = AN01_02~condition + horror_familiarity, Hess = T)
+m8.2 <- df_filt %>% polr(formula = AN01_02~condition + videogame_familiarity, Hess = T)
+m8.3 <- df_filt %>% polr(formula = AN01_02~condition + Age, Hess = T)
+m8.4 <- df_filt %>% polr(formula = AN01_02~condition + Gender, Hess = T)
+AICc(m8.0, m8.1, m8.2, m8.3, m8.4)
+```
+```{r}
+summary_table <- coef(summary(m8.0))
+pval <- pnorm(abs(summary_table[, "t value"]),lower.tail = FALSE)* 2
+summary_table <- cbind(summary_table, "p value" = round(pval,3))
+summary_table
+```
+```{r}
+m9.0 <- df_filt %>% polr(formula = AN01_01~condition, Hess = T)
+m9.1 <- df_filt %>% polr(formula = AN01_01~condition + horror_familiarity, Hess = T)
+m9.2 <- df_filt %>% polr(formula = AN01_01~condition + videogame_familiarity, Hess = T)
+m9.3 <- df_filt %>% polr(formula = AN01_01~condition + Age, Hess = T)
+m9.4 <- df_filt %>% polr(formula = AN01_01~condition + Gender, Hess = T)
+AICc(m9.0, m9.1, m9.2, m9.3, m9.4)
+```
+```{r}
+summary_table <- coef(summary(m9.0))
+pval <- pnorm(abs(summary_table[, "t value"]),lower.tail = FALSE)* 2
+summary_table <- cbind(summary_table, "p value" = round(pval,3))
+summary_table
+```
+```{r}
+m10.0 <- df_filt %>% polr(formula = felt_heartbeat_quicken~condition, Hess = T)
+m10.1 <- df_filt %>% polr(formula = felt_heartbeat_quicken~condition + horror_familiarity, Hess = T)
+m10.2 <- df_filt %>% polr(formula = felt_heartbeat_quicken~condition + videogame_familiarity, Hess = T)
+m10.3 <- df_filt %>% polr(formula = felt_heartbeat_quicken~condition + Age, Hess = T)
+m10.4 <- df_filt %>% polr(formula = felt_heartbeat_quicken~condition + Gender, Hess = T)
+AICc(m10.0, m10.1, m10.2, m10.3, m10.4)
+```
+```{r}
+summary_table <- coef(summary(m10.0))
+pval <- pnorm(abs(summary_table[, "t value"]),lower.tail = FALSE)* 2
+summary_table <- cbind(summary_table, "p value" = round(pval,3))
+summary_table
+```
+```{r}
+m11.0 <- df_filt %>% filter(felt_sweat!=-1) %>% polr(formula = felt_sweat~condition, Hess = T)
+summary_table <- coef(summary(m11.0))
+pval <- pnorm(abs(summary_table[, "t value"]),lower.tail = FALSE)* 2
+summary_table <- cbind(summary_table, "p value" = round(pval,3))
+summary_table
+```
+```{r}
+m12.0 <- df_filt %>% filter(felt_blink_accelerate!=-1) %>% polr(formula = felt_blink_accelerate~condition, Hess = T)
+summary_table <- coef(summary(m12.0))
+pval <- pnorm(abs(summary_table[, "t value"]),lower.tail = FALSE)* 2
+summary_table <- cbind(summary_table, "p value" = round(pval,3))
+summary_table
+```
+```{r}
+m13.0 <- df_filt %>% filter(felt_shoulders_raise!=-1) %>% polr(formula = felt_shoulders_raise~condition, Hess = T)
+summary_table <- coef(summary(m13.0))
+pval <- pnorm(abs(summary_table[, "t value"]),lower.tail = FALSE)* 2
+summary_table <- cbind(summary_table, "p value" = round(pval,3))
+summary_table
+```
+```{r}
+m14.0 <- df_filt %>% filter(felt_facial_muscles!=-1) %>% polr(formula = felt_facial_muscles~condition, Hess = T)
+summary_table <- coef(summary(m14.0))
+pval <- pnorm(abs(summary_table[, "t value"]),lower.tail = FALSE)* 2
+summary_table <- cbind(summary_table, "p value" = round(pval,3))
+summary_table
+```
+```{r}
+m15.0 <- df_filt %>% polr(formula = enjoyment_game~condition, Hess = T)
+m15.1 <- df_filt %>% polr(formula = enjoyment_game~condition + horror_familiarity, Hess = T)
+m15.2 <- df_filt %>% polr(formula = enjoyment_game~condition + videogame_familiarity, Hess = T)
+m15.3 <- df_filt %>% polr(formula = enjoyment_game~condition + Age, Hess = T)
+m15.4 <- df_filt %>% polr(formula = enjoyment_game~condition + Gender, Hess = T)
+AICc(m15.0, m15.1, m15.2, m15.3, m15.4)
+```
+
+```{r}
+summary_table <- coef(summary(m15.0))
+pval <- pnorm(abs(summary_table[, "t value"]),lower.tail = FALSE)* 2
+summary_table <- cbind(summary_table, "p value" = round(pval,3))
+summary_table
+```
+```{r}
+m16.0 <- df_filt %>% polr(formula = enjoyment_jumpscare~condition, Hess = T)
+m16.1 <- df_filt %>% polr(formula = enjoyment_jumpscare~condition + horror_familiarity, Hess = T)
+m16.2 <- df_filt %>% polr(formula = enjoyment_jumpscare~condition + videogame_familiarity, Hess = T)
+m16.3 <- df_filt %>% polr(formula = enjoyment_jumpscare~condition + Age, Hess = T)
+m16.4 <- df_filt %>% polr(formula = enjoyment_jumpscare~condition + Gender, Hess = T)
+AICc(m16.0, m16.1, m16.2, m16.3, m16.4)
+```
+```{r}
+summary_table <- coef(summary(m16.0))
+pval <- pnorm(abs(summary_table[, "t value"]),lower.tail = FALSE)* 2
+summary_table <- cbind(summary_table, "p value" = round(pval,3))
+summary_table
+```
+
